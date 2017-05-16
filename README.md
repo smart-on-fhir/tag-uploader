@@ -1,14 +1,14 @@
 # tag-uploader
 Adds tags to FHIR bundles and resources and uploads them to specified servers
 
-##installation
+## installation
 ```sh
 git clone https://github.com/smart-on-fhir/tag-uploader.git
 cd tag-uploader
 npm i
 ```
 
-##usage
+## usage
 
 To add a tag to every JSON bundle found (deep) within the specified directory:
 ```sh
@@ -20,7 +20,7 @@ To upload JSON bundle found (deep) within the specified directory:
 node tag-uploader -d {SOURCE_DIR} -t "Some tag" -S {SOME_FHIR_SERVER}
 ```
 
-##All Options
+## All Options
 ```
 Usage: tag-uploader [options]
 
