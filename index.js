@@ -202,8 +202,7 @@ walker.on("file", function (root, fileStats, next) {
             if (APP.server) {
                 upload(json, error => {
                     if (error) {
-                        console.error(error)
-                        return next();
+                        console.error(error);
                     }
                     next();
                 })
@@ -214,7 +213,7 @@ walker.on("file", function (root, fileStats, next) {
         }
         catch(ex) {
             console.error(ex)
-            return next();
+            next();
         }
     });
 });
