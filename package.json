@@ -15,6 +15,7 @@
     "eslint": "^3.19.0",
     "humanize-duration": "^3.10.0",
     "request": "^2.81.0",
+    "table": "^4.0.1",
     "walk": "^2.3.9"
   }
 }
