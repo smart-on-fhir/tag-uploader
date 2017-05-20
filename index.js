@@ -14,7 +14,6 @@ let COUNT_FILES        = 0;
 let COUNT_RESOURCES    = 0;
 let COUNT_UPLOADED     = 0;
 let COUNT_NOT_UPLOADED = 0;
-let FILE_FOUND = false
 
 APP.version(PCG.version);
 APP.option('-d, --input-dir <dir>', 'The directory to walk and search for JSON bundles');
@@ -319,7 +318,8 @@ if (!APP.tag) {
 }
 
 function countResources(cb) {
-    let resources = 0
+    let resources = 0,
+        fileFound = false;
     let counter = Walk.walk(APP.inputDir, {
         followLinks: false,
         filters    : ["Temp", "_Temp"]
@@ -348,10 +348,10 @@ function countResources(cb) {
         }
 
         if (APP.skipUntil && fileStats.name == APP.skipUntil) {
-            FILE_FOUND = true
+            fileFound = true
         }
 
-        if (APP.skipUntil && !FILE_FOUND) {
+        if (APP.skipUntil && !fileFound) {
             return next();
         }
 
@@ -373,6 +373,7 @@ function countResources(cb) {
 }
 
 function walk(total) {
+    let fileFound = false;
 
     let walker = Walk.walk(APP.inputDir, {
         followLinks: false,
@@ -385,6 +386,7 @@ function walk(total) {
     });
 
     walker.on("end", function () {
+        console.log("\r\033[2K100% ▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉".bold)
         console.log(
             "\n" +
             " Done ".bold.bgGreen + " " +
@@ -409,10 +411,10 @@ function walk(total) {
         }
 
         if (APP.skipUntil && fileStats.name == APP.skipUntil) {
-            FILE_FOUND = true
+            fileFound = true
         }
 
-        if (APP.skipUntil && !FILE_FOUND) {
+        if (APP.skipUntil && !fileFound) {
             return next();
         }
 
