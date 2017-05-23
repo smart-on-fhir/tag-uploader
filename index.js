@@ -10,21 +10,27 @@ const request  = require("request");
 const duration = require('humanize-duration');
 const Table    = require("table");
 
+const RE_WHITE_SPACES  = /\s+/g;
+const RE_TABLE_ROWS    = /<tr.*?>.*?<\/tr>/gi;
+const RE_TABLE_CELLS   = /<(td|th).*?>(.*?)<\/\1>/gi;
+const RE_ANY_TAGS      = /<.*?>/g;
+const PROGRESS_LENGTH  = 60;
+
 let COUNT_FILES        = 0;
 let COUNT_RESOURCES    = 0;
 let COUNT_UPLOADED     = 0;
 let COUNT_NOT_UPLOADED = 0;
 
 APP.version(PCG.version);
-APP.option('-d, --input-dir <dir>', 'The directory to walk and search for JSON bundles');
-APP.option('-t, --tag <tag>'      , 'The tag to add to every resource');
-APP.option('-s, --system <string>', 'The tag to add to every resource', "urn:oid:tag-bundler");
-APP.option('-w, --overwrite'      , 'Overwrite the source files', false);
-APP.option('-S, --server <url>'   , 'The remote server to send the bundles to', "");
-APP.option('-v, --verbose'        , 'Show detailed output', false);
-APP.option('-V, --validate'       , 'Validate the bundles', false);
-APP.option('-p, --proxy <url>'    , 'HTTP proxy url');
-APP.option('--skip-until <filename>', 'Skip everything before this file (useful for debugging')
+APP.option('-d, --input-dir <dir>'  , 'The directory to walk and search for JSON bundles');
+APP.option('-t, --tag <tag>'        , 'The tag to add to every resource');
+APP.option('-s, --system <string>'  , 'The tag to add to every resource', "urn:oid:tag-bundler");
+APP.option('-w, --overwrite'        , 'Overwrite the source files', false);
+APP.option('-S, --server <url>'     , 'The remote server to send the bundles to', "");
+APP.option('-v, --verbose'          , 'Show detailed output', false);
+APP.option('-V, --validate'         , 'Validate the bundles', false);
+APP.option('-p, --proxy <url>'      , 'HTTP proxy url');
+APP.option('--skip-until <filename>', 'Skip everything before this file (useful for debugging)');
 
 /**
  * Parses the provided HTML string, extracts all <TR> tags and then extracts
@@ -34,29 +40,24 @@ APP.option('--skip-until <filename>', 'Skip everything before this file (useful 
  * @returns {Array}
  */
 function htmlTableToArray(html) {
-    let rows = html.replace(/\s+/g, " ").match(/<tr.*?>.*?<\/tr>/gi)
-    // html.match(/<td.*?>(.*?)<\/td>/gi)
-    // console.log(rows)
+    let rows = html.replace(RE_WHITE_SPACES, " ").match(RE_TABLE_ROWS);
     return (rows || []).map(row => {
-        return row.match(/<(td|th).*?>(.*?)<\/\1>/gi).map((cell, i) => {
-            let out = cell.replace(/<.*?>/gi, "")
+        return row.match(RE_TABLE_CELLS).map((cell, i) => {
+            let out = cell.replace(RE_ANY_TAGS, "");
             if (i === 0) {
                 if (out == "WARNING") {
-                    out = out.yellow
+                    out = out.yellow;
                 }
                 else if (out == "ERROR") {
-                    out = out.red
+                    out = out.red;
                 }
                 else if (out == "INFORMATION") {
-                    out = out.cyan
+                    out = out.cyan;
                 }
             }
-            // else if (i === 1) {
-            //     out = out.bold
-            // }
-            return out
-        })
-    })
+            return out;
+        });
+    });
 }
 
 /**
@@ -84,30 +85,27 @@ function tag(json={}) {
     // Not a resource - ignore it
     if (!json.resourceType) {
         debugLog(`  Not a valid FHIR resource\n`.red);
-        return json
+        return json;
     }
 
     // FHIR Bundle - loop entries and add tags
     if (json.resourceType == "Bundle") {
-        // debugLog(`  Found a bundle\n`.green);
         if (Array.isArray(json.entry)) {
             json.entry.forEach(entry => {
                 if (entry.request && entry.resource && entry.resource.resourceType) {
-                    // debugLog(`  Patching bundle entry...\n`.green);
-                    entry.resource = tag(entry.resource)
+                    entry.resource = tag(entry.resource);
                 }
-            })
+            });
         }
-        return json
+        return json;
     }
 
     // FHIR Resource -----------------------------------------------------------
 
-    COUNT_RESOURCES +=1
+    COUNT_RESOURCES +=1;
 
     // No meta - add one and exit
     if (!json.meta) {
-        // debugLog(`  No meta found. Adding new meta branch\n`.green);
         json.meta = {
             tag: [
                 {
@@ -116,41 +114,38 @@ function tag(json={}) {
                 }
             ]
         };
-        return json
+        return json;
     }
 
     // No meta tag - add one and exit
     if (!Array.isArray(json.meta.tag) || !json.meta.tag.length) {
-        // debugLog(`  No tags found. Adding new tag\n`.green);
         json.meta.tag = [
             {
                 system: APP.system,
                 code  : APP.tag
             }
         ];
-        return json
+        return json;
     }
 
     // Look for existing tag with the same system. If found - update it
     if (json.meta.tag.some(t => {
         if (t.system == APP.system) {
-            // debugLog(`  Tag found. Updating the code to "${APP.tag}".\n`.green);
-            t.code = APP.tag
-            return true
+            t.code = APP.tag;
+            return true;
         }
-        return false
+        return false;
     })) {
-        return json
+        return json;
     }
 
     // Have meta but no tag - add one and exit
-    // debugLog(`  No tags found. Adding new tag\n`.green);
     json.meta.tag.push({
         system: APP.system,
         code  : APP.tag
-    })
+    });
 
-    return json
+    return json;
 }
 
 /**
@@ -162,11 +157,11 @@ function tag(json={}) {
 function addEntryFullURLs(bundle) {
     if (Array.isArray(bundle.entry)) {
         bundle.entry = bundle.entry.map(entry => {
-            entry.fullUrl = APP.server + "/" + entry.request.url
-            return entry
-        })
+            entry.fullUrl = APP.server + "/" + entry.request.url;
+            return entry;
+        });
     }
-    return bundle
+    return bundle;
 }
 
 /**
@@ -189,82 +184,97 @@ function upload(json) {
             }
         }, (error, response, body) => {
             if (error) {
-                debugLog("Failed!\n".bold.red, "http")
-                COUNT_NOT_UPLOADED += 1
+                debugLog("Failed!\n".bold.red);
+                COUNT_NOT_UPLOADED += 1;
                 return reject(error);
             }
             if (response.statusCode >= 400) {
-                debugLog("Failed!\n".bold.red, "http")
-                let err = new Error(response.statusMessage)
-                err.details = body
-                err.payload = json
-                COUNT_NOT_UPLOADED += 1
+                debugLog("Failed!\n".bold.red);
+                let err = new Error(response.statusMessage);
+                err.details = body;
+                err.payload = json;
+                COUNT_NOT_UPLOADED += 1;
                 return reject(err);
             }
             COUNT_UPLOADED += 1;
-            debugLog(`OK (${duration(Date.now() - start)})\n`.bold.green, "http");
+            debugLog(`OK (${duration(Date.now() - start)})\n`.bold.green);
             resolve(body);
         })
     })
 }
 
 /**
- * Iterates over every resource in every bundle and calls a validation service
- * to validate the resource
+ * Validates the given resource JSON. If the argument is a bundle or a set
+ * iterates over every contained resource and calls a validation service
+ * to validate it.
  * @param {Object} json
  * @returns {Promise<object>}
  */
 function validate(json) {
-    let job = Promise.resolve()
-    json.entry.forEach(trx => {
-        job = job.then(() => new Promise((resolve, reject) => {
-            request({
-                method: "POST",
-                uri   : APP.server.replace(/\/?$/, "/") + trx.request.url + "/$validate",
-                json  : true,
-                body  : json,
-                proxy : APP.proxy,
-                headers: {
-                    accept: "application/json+fhir"
-                }
-            }, (error, response, body) => {
-                if (error) {
-                    return reject(error);
-                }
-                if (body &&
-                    body.resourceType == "OperationOutcome" &&
-                    body.text &&
-                    body.text.div &&
-                    body.text.div.indexOf("No issues detected during validation") == -1)
-                {
-                    let msg = "\n" + ` Validation errors in ${trx.request.url}: `.bold.redBG + "\n"
-                    msg += Table.table(htmlTableToArray(body.text.div), {
-                        columns: {
-                            0: {
-                                alignment: 'right',
-                                width: 12
-                            },
-                            1: {
-                                alignment: 'left',
-                                width: 60,
-                                wrapWord: true
-                            },
-                            2: {
-                                alignment: 'left',
-                                width: 80,
-                                wrapWord: true
-                            }
+    if (json.resourceType == "Bundle" || json.resourceType == "Set") {
+        if (Array.isArray(json.entry)) {
+            let job = Promise.resolve();
+            json.entry.forEach(trx => {
+                job = job.then(() => validateResource(trx.resource));
+            });
+            return job;
+        }
+    }
+    return validateResource(json);
+}
+
+/**
+ * Calls a validation service to validate the given FHIR resource
+ * @param {Object} resource
+ * @returns {Promise<object>}
+ */
+function validateResource(resource) {
+    return new Promise((resolve, reject) => {
+        let url = APP.server.replace(/\/?$/, "/") + resource.id + "/$validate";
+        request({
+            method: "POST",
+            uri   : url,
+            json  : true,
+            body  : resource,
+            proxy : APP.proxy,
+            headers: {
+                accept: "application/json+fhir"
+            }
+        }, (error, response, body) => {
+            if (error) {
+                return reject(error);
+            }
+            if (body &&
+                body.resourceType == "OperationOutcome" &&
+                body.text &&
+                body.text.div &&
+                body.text.div.indexOf("No issues detected during validation") == -1)
+            {
+                let msg = "\n" + ` Validation errors in ${url}: `.bold.redBG + "\n";
+                msg += Table.table(htmlTableToArray(body.text.div), {
+                    columns: {
+                        0: {
+                            alignment: 'right',
+                            width: 12
+                        },
+                        1: {
+                            alignment: 'left',
+                            width: 60,
+                            wrapWord: true
+                        },
+                        2: {
+                            alignment: 'left',
+                            width: 80,
+                            wrapWord: true
                         }
-                    });
-                    return reject(msg);
-                }
+                    }
+                });
+                return reject(msg);
+            }
 
-                setTimeout(() => resolve(json), 0);
-            })
-        }));
+            setTimeout(() => resolve(resource), 0);
+        });
     })
-
-    return job
 }
 
 /**
@@ -277,11 +287,11 @@ function readFile(src) {
     return new Promise((resolve, reject) => {
         FS.readFile(src, "utf8", function(err, str) {
             if (err) {
-                return reject(err)
+                return reject(err);
             }
-            resolve(str)
-        })
-    })
+            resolve(str);
+        });
+    });
 }
 
 /**
@@ -292,41 +302,48 @@ function readFile(src) {
 function parseJSON(str) {
     let json;
     try {
-        json = JSON.parse(str)
+        json = JSON.parse(str);
     }
     catch (ex) {
-        return Promise.reject(ex)
+        return Promise.reject(ex);
     }
-    return Promise.resolve(json)
+    return Promise.resolve(json);
 }
 
-
-APP.parse(process.argv);
-
-// Require input directory!
-if (!APP.inputDir) {
-    console.error('No input directory given'.red);
-    APP.help()
-    process.exit(1)
+/**
+ * Generates a progress indicator and writes it to STDOUT
+ * @param {Number} pct The percentage
+ * @returns {void}
+ */
+function writeProgress(pct) {
+    let spinner = "";
+    for (let i = 0; i < PROGRESS_LENGTH; i++) {
+        if (i / PROGRESS_LENGTH * 100 >= pct) spinner += "▉".grey
+        else spinner += "▉".bold
+    }
+    process.stdout.write(
+        "\r\033[2K" +
+        `${pct}% `.bold +
+        `${spinner} `
+    );
 }
 
-// Require a tag!
-if (!APP.tag) {
-    console.error('No tag given'.red);
-    APP.help()
-    process.exit(1)
-}
-
+/**
+ * Walk the files first an count the resources contained within them. This is
+ * needed to compute the progress later.
+ * @param {Function} cb A callback function to be called with the total count
+ *                      once the task is complete.
+ * @returns {void}
+ */
 function countResources(cb) {
-    let resources = 0,
-        fileFound = false;
+    let resources = 0, fileFound = false;
     let counter = Walk.walk(APP.inputDir, {
         followLinks: false,
         filters    : ["Temp", "_Temp"]
     });
 
     counter.on("errors", function (root, nodeStatsArray, next) {
-        console.log(("Error: " + nodeStatsArray.error).red + root + " - ", nodeStatsArray)
+        console.log(("Error: " + nodeStatsArray.error).red + root + " - ", nodeStatsArray);
         next();
     });
 
@@ -372,6 +389,11 @@ function countResources(cb) {
     })
 }
 
+/**
+ * The actual worker
+ * @param {Number} total The number of resources (used to compute the progress)
+ * @returns {void}
+ */
 function walk(total) {
     let fileFound = false;
 
@@ -386,13 +408,13 @@ function walk(total) {
     });
 
     walker.on("end", function () {
-        console.log("\r\033[2K100% ▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉▉".bold)
+        writeProgress(100);
         console.log(
             "\n" +
             " Done ".bold.bgGreen + " " +
-            COUNT_FILES + " files processed, " +
-            COUNT_RESOURCES + " resources tagged, " +
-            COUNT_UPLOADED + " resources uploaded, " +
+            COUNT_FILES        + " files processed, " +
+            COUNT_RESOURCES    + " resources tagged, " +
+            COUNT_UPLOADED     + " resources uploaded, " +
             COUNT_NOT_UPLOADED + " resources failed to upload"
         );
     });
@@ -419,51 +441,64 @@ function walk(total) {
         }
 
         debugLog(`Processing file "${fileStats.name}": `.bold);
-        let pct = Math.floor(COUNT_RESOURCES/total * 100)
-        let spinner = "", l = 60
-        for (let i = 0; i < l; i++) {
-            if (i /l * 100 >= pct) spinner += "▉".grey
-            else spinner += "▉".bold
-        }
-        process.stdout.write("\r\033[2K")
-        process.stdout.write(`${pct}% `.bold)
-        process.stdout.write(`${spinner} `)
-        process.stdout.write(`Processing file "${fileStats.name}`.bold)
+        writeProgress(Math.floor(COUNT_RESOURCES/total * 100));
+        process.stdout.write(`Processing file "${fileStats.name}`.bold);
         process.stdout.write(" ... ")
 
-        let src = Path.join(root, fileStats.name)
+        let src = Path.join(root, fileStats.name);
         readFile(src)
         .then(parseJSON)
         .then(json => tag(json))
         .then(json => addEntryFullURLs(json))
         .then(json => {
             if (APP.overwrite) {
-                FS.writeFileSync(src, JSON.stringify(json, null, 4), "utf8")
+                FS.writeFileSync(src, JSON.stringify(json, null, 4), "utf8");
             }
-            return json
+            return json;
         })
         .then(json => {
             if (APP.server && APP.validate) {
-                return validate(json)
+                return validate(json);
             }
-            return json
+            return json;
         })
         .then(json => {
             if (APP.server && !APP.validate) {
-                return upload(json)
+                return upload(json);
             }
-            return json
+            return json;
         })
         .then(() => {
             COUNT_FILES += 1;
-            next()
+            next();
         })
         .catch(error => {
             console.error(error);
-            if (!APP.validate)
-                next()
+            if (!APP.validate) {
+                next();
+            }
         });
     });
 }
 
-countResources(walk)
+// =============================================================================
+//                                 EXECUTE
+// =============================================================================
+
+APP.parse(process.argv);
+
+// Require input directory!
+if (!APP.inputDir) {
+    console.error('No input directory given'.red);
+    APP.help();
+    process.exit(1);
+}
+
+// Require a tag!
+if (!APP.tag) {
+    console.error('No tag given'.red);
+    APP.help();
+    process.exit(1);
+}
+
+countResources(walk);
