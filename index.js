@@ -150,7 +150,8 @@ function tag(json={}) {
 
 /**
  * The bundle will have to be submitted to the provided server URL. This means
- * that the "fullUrl" property of the bundle entries will have to be set accordingly.
+ * that the "fullUrl" property of the bundle entries will have to be set
+ * accordingly.
  * @param {Object} bundle
  * @return {Object} bundle
  */
@@ -515,7 +516,7 @@ if (require.main === module) {
 }
 else {
 
-    // exported for testing
+    // export functions for testing
     module.exports = {
         parseJSON,
         generateProgress,
