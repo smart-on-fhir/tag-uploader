@@ -311,21 +311,30 @@ function parseJSON(str) {
 }
 
 /**
- * Generates a progress indicator and writes it to STDOUT
+ * Generates a progress indicator
  * @param {Number} pct The percentage
- * @returns {void}
+ * @returns {String}
  */
-function writeProgress(pct) {
-    let spinner = "";
+function generateProgress(pct=0) {
+    let spinner = "", bold = [], grey = [];
     for (let i = 0; i < PROGRESS_LENGTH; i++) {
-        if (i / PROGRESS_LENGTH * 100 >= pct) spinner += "▉".grey
-        else spinner += "▉".bold
+        if (i / PROGRESS_LENGTH * 100 >= pct) {
+            grey.push("▉");
+        }
+        else {
+            bold.push("▉");
+        }
     }
-    process.stdout.write(
-        "\r\033[2K" +
-        `${pct}% `.bold +
-        `${spinner} `
-    );
+
+    if (bold.length) {
+        spinner += bold.join("").bold;
+    }
+
+    if (grey.length) {
+        spinner += grey.join("").grey;
+    }
+
+    return "\r\033[2K" + `${pct}% `.bold + `${spinner} `;
 }
 
 /**
@@ -408,7 +417,7 @@ function walk(total) {
     });
 
     walker.on("end", function () {
-        writeProgress(100);
+        process.stdout.write(generateProgress(100));
         console.log(
             "\n" +
             " Done ".bold.bgGreen + " " +
@@ -441,7 +450,7 @@ function walk(total) {
         }
 
         debugLog(`Processing file "${fileStats.name}": `.bold);
-        writeProgress(Math.floor(COUNT_RESOURCES/total * 100));
+        process.stdout.write(generateProgress(Math.floor(COUNT_RESOURCES/total * 100)));
         process.stdout.write(`Processing file "${fileStats.name}`.bold);
         process.stdout.write(" ... ")
 
@@ -484,21 +493,32 @@ function walk(total) {
 // =============================================================================
 //                                 EXECUTE
 // =============================================================================
+if (require.main === module) {
 
-APP.parse(process.argv);
+    APP.parse(process.argv);
 
-// Require input directory!
-if (!APP.inputDir) {
-    console.error('No input directory given'.red);
-    APP.help();
-    process.exit(1);
+    // Require input directory!
+    if (!APP.inputDir) {
+        console.error('No input directory given'.red);
+        APP.help();
+        process.exit(1);
+    }
+
+    // Require a tag!
+    if (!APP.tag) {
+        console.error('No tag given'.red);
+        APP.help();
+        process.exit(1);
+    }
+
+    countResources(walk);
 }
+else {
 
-// Require a tag!
-if (!APP.tag) {
-    console.error('No tag given'.red);
-    APP.help();
-    process.exit(1);
+    // exported for testing
+    module.exports = {
+        parseJSON,
+        generateProgress,
+        walk
+    };
 }
-
-countResources(walk);

@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "nodeunit"
   },
   "keywords": [],
   "author": "",
@@ -17,5 +17,8 @@
     "request": "^2.81.0",
     "table": "^4.0.1",
     "walk": "^2.3.9"
+  },
+  "devDependencies": {
+    "nodeunit": "^0.11.0"
   }
 }
