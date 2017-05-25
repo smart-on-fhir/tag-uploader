@@ -80,7 +80,9 @@ function debugLog(msg) {
  * @param {Object} json
  * @return {Object} json Returns the same JSON object decorated with the new tag
  */
-function tag(json={}) {
+function tag(json={}, tagString="") {
+
+    tagString = tagString || APP.tag
 
     // Not a resource - ignore it
     if (!json.resourceType) {
@@ -93,7 +95,7 @@ function tag(json={}) {
         if (Array.isArray(json.entry)) {
             json.entry.forEach(entry => {
                 if (entry.request && entry.resource && entry.resource.resourceType) {
-                    entry.resource = tag(entry.resource);
+                    entry.resource = tag(entry.resource, tagString);
                 }
             });
         }
@@ -110,19 +112,19 @@ function tag(json={}) {
             tag: [
                 {
                     system: APP.system,
-                    code  : APP.tag
+                    code  : tagString
                 }
             ]
         };
         return json;
     }
 
-    // No meta tag - add one and exit
+    // No meta.tag - add one and exit
     if (!Array.isArray(json.meta.tag) || !json.meta.tag.length) {
         json.meta.tag = [
             {
                 system: APP.system,
-                code  : APP.tag
+                code  : tagString
             }
         ];
         return json;
@@ -131,7 +133,7 @@ function tag(json={}) {
     // Look for existing tag with the same system. If found - update it
     if (json.meta.tag.some(t => {
         if (t.system == APP.system) {
-            t.code = APP.tag;
+            t.code = tagString;
             return true;
         }
         return false;
@@ -142,7 +144,7 @@ function tag(json={}) {
     // Have meta but no tag - add one and exit
     json.meta.tag.push({
         system: APP.system,
-        code  : APP.tag
+        code  : tagString
     });
 
     return json;
@@ -524,6 +526,7 @@ else {
     module.exports = {
         parseJSON,
         generateProgress,
-        walk
+        walk,
+        tag
     };
 }

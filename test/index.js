@@ -9,9 +9,86 @@ require("colors");
 //     test.done();
 // };
 
-// exports.tag = function(test) {
-//     test.done();
-// };
+exports.tag = function(test) {
+    const TAG = "test";
+    const meta = {
+        meta: {
+            tag: [
+                {
+                    system: "https://smarthealthit.org/tags",
+                    code: TAG
+                }
+            ]
+        }
+    };
+    let json;
+
+    // Not a resource ----------------------------------------------------------
+    json = { a: 2 }
+    test.deepEqual(app.tag(json, TAG), json);
+
+    // Resource & no meta ------------------------------------------------------
+    json = { resourceType: "test" }
+    test.deepEqual(app.tag(json, TAG), Object.assign({}, json, meta));
+
+    // Resource & empty meta ---------------------------------------------------
+    json = { resourceType: "test", meta: {} }
+    test.deepEqual(app.tag(json, TAG), Object.assign({}, json, meta));
+
+    // Resource & empty meta.tag -----------------------------------------------
+    json = { resourceType: "test", meta: { tag: [] } }
+    test.deepEqual(app.tag(json, TAG), Object.assign({}, json, meta));
+
+    // Resource & other tags ---------------------------------------------------
+    json = { resourceType: "test", meta: { tag: [ { system: "x", code: "y" } ] } }
+    test.deepEqual(app.tag(json, TAG), {
+        resourceType: "test",
+        meta: {
+            tag: [
+                { system: "x", code: "y" },
+                meta.meta.tag[0]
+            ]
+        }
+    });
+
+    // Resource & other tag from the same system -------------------------------
+    json = {
+        resourceType: "test",
+        meta: {
+            tag: [
+                {
+                    system: "https://smarthealthit.org/tags",
+                    code: "y"
+                }
+            ]
+        }
+    };
+    test.deepEqual(app.tag(json, TAG), Object.assign({resourceType: "test"}, meta));
+
+    // Bundle ------------------------------------------------------------------
+    json = {
+        resourceType: "Bundle",
+        entry: [
+            { request: {}, resource: { resourceType: "test" }},
+            { request: {}, resource: { resourceType: "test" }}
+        ]
+    }
+    test.deepEqual(app.tag(json, TAG), {
+        resourceType: "Bundle",
+        entry: [
+            {
+                request: {},
+                resource: Object.assign({ resourceType: "test" }, meta)
+            },
+            {
+                request: {},
+                resource: Object.assign({ resourceType: "test" }, meta)
+            }
+        ]
+    });
+
+    test.done();
+};
 
 // exports.addEntryFullURLs = function(test) {
 //     test.done();
