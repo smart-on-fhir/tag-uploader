@@ -24,7 +24,7 @@ let COUNT_NOT_UPLOADED = 0;
 APP.version(PCG.version);
 APP.option('-d, --input-dir <dir>'  , 'The directory to walk and search for JSON bundles');
 APP.option('-t, --tag <tag>'        , 'The tag to add to every resource');
-APP.option('-s, --system <string>'  , 'The tag to add to every resource', "urn:oid:tag-bundler");
+APP.option('-s, --system <string>'  , 'The tag to add to every resource', "https://smarthealthit.org/tags");
 APP.option('-w, --overwrite'        , 'Overwrite the source files', false);
 APP.option('-S, --server <url>'     , 'The remote server to send the bundles to', "");
 APP.option('-v, --verbose'          , 'Show detailed output', false);
@@ -231,7 +231,8 @@ function validate(json) {
  */
 function validateResource(resource) {
     return new Promise((resolve, reject) => {
-        let url = APP.server.replace(/\/?$/, "/") + resource.id + "/$validate";
+        let url = APP.server.replace(/\/?$/, "/") +
+            `${resource.resourceType}/${resource.id}/$validate`;
         request({
             method: "POST",
             uri   : url,
@@ -270,7 +271,10 @@ function validateResource(resource) {
                         }
                     }
                 });
-                return reject(msg);
+                if (body.text.div.indexOf("ERROR") > -1) {
+                    return reject(msg);
+                }
+                console.log("\n" + msg);
             }
 
             setTimeout(() => resolve(resource), 0);
