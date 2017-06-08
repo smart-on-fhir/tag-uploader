@@ -15,6 +15,10 @@ const RE_TABLE_ROWS    = /<tr.*?>.*?<\/tr>/gi;
 const RE_TABLE_CELLS   = /<(td|th).*?>(.*?)<\/\1>/gi;
 const RE_ANY_TAGS      = /<.*?>/g;
 const PROGRESS_LENGTH  = 60;
+const VALIDATE_NONE    = 0;
+const VALIDATE_INFO    = 1;
+const VALIDATE_WARNING = 2;
+const VALIDATE_ERROR   = 3;
 
 let COUNT_FILES        = 0;
 let COUNT_RESOURCES    = 0;
@@ -22,15 +26,16 @@ let COUNT_UPLOADED     = 0;
 let COUNT_NOT_UPLOADED = 0;
 
 APP.version(PCG.version);
-APP.option('-d, --input-dir <dir>'  , 'The directory to walk and search for JSON bundles');
-APP.option('-t, --tag <tag>'        , 'The tag to add to every resource');
-APP.option('-s, --system <string>'  , 'The tag to add to every resource', "https://smarthealthit.org/tags");
-APP.option('-w, --overwrite'        , 'Overwrite the source files', false);
-APP.option('-S, --server <url>'     , 'The remote server to send the bundles to', "");
-APP.option('-v, --verbose'          , 'Show detailed output', false);
-APP.option('-V, --validate'         , 'Validate the bundles', false);
-APP.option('-p, --proxy <url>'      , 'HTTP proxy url');
-APP.option('--skip-until <filename>', 'Skip everything before this file (useful for debugging)');
+APP.option('-d, --input-dir <dir>'    , 'The directory to walk and search for JSON bundles');
+APP.option('-t, --tag <tag>'          , 'The tag to add to every resource');
+APP.option('-s, --system <string>'    , 'The tag to add to every resource', "https://smarthealthit.org/tags");
+APP.option('-w, --overwrite'          , 'Overwrite the source files', false);
+APP.option('-S, --server <url>'       , 'The remote server to send the bundles to', "");
+APP.option('-v, --verbose'            , 'Show detailed output', false);
+APP.option('-V, --validate [logLevel]', 'Validate the bundles', VALIDATE_NONE);
+APP.option('-e, --exit-on-invalid'    , 'Exit on validation errors', false);
+APP.option('-p, --proxy <url>'        , 'HTTP proxy url');
+APP.option('--skip-until <filename>'  , 'Skip everything before this file (useful for debugging)');
 
 /**
  * Parses the provided HTML string, extracts all <TR> tags and then extracts
@@ -94,7 +99,7 @@ function tag(json={}, tagString="") {
     if (json.resourceType == "Bundle") {
         if (Array.isArray(json.entry)) {
             json.entry.forEach(entry => {
-                if (entry.request && entry.resource && entry.resource.resourceType) {
+                if (entry.resource && entry.resource.resourceType) {
                     entry.resource = tag(entry.resource, tagString);
                 }
             });
@@ -160,7 +165,11 @@ function tag(json={}, tagString="") {
 function addEntryFullURLs(bundle) {
     if (Array.isArray(bundle.entry)) {
         bundle.entry = bundle.entry.map(entry => {
-            entry.fullUrl = APP.server + "/" + entry.request.url;
+            if (!entry.fullUrl && entry.resource.id) {
+                entry.fullUrl = APP.server + "/" +
+                    entry.resource.resourceType + "/" +
+                    entry.resource.id;
+            }
             return entry;
         });
     }
@@ -174,6 +183,18 @@ function addEntryFullURLs(bundle) {
  */
 function upload(json) {
     return new Promise((resolve, reject) => {
+
+        if (json.type == "collection") { // synthea
+            json.type = "transaction"
+            json.entry.forEach(e => {
+                let method = e.fullUrl && e.resource.id.indexOf("urn:uuid:") !== 0 ? "PUT" : "POST"
+                e.request = {
+                    method,
+                    url: method == "PUT" ? `${e.resource.resourceType}/${e.resource.id}` : `${e.resource.resourceType}`
+                };
+            })
+        }
+
         debugLog(`Executing transaction ${json.entry[0].request.url} ... `);
         let start = Date.now();
         request({
@@ -233,8 +254,15 @@ function validate(json) {
  */
 function validateResource(resource) {
     return new Promise((resolve, reject) => {
+
+        // Cannot validate resource without id
+        if (!resource.id) {
+            return resolve()
+        }
+
         let url = APP.server.replace(/\/?$/, "/") +
             `${resource.resourceType}/${resource.id}/$validate`;
+
         request({
             method: "POST",
             uri   : url,
@@ -254,29 +282,37 @@ function validateResource(resource) {
                 body.text.div &&
                 body.text.div.indexOf("No issues detected during validation") == -1)
             {
-                let msg = "\n" + ` Validation errors in ${url}: `.bold.redBG + "\n";
-                msg += Table.table(htmlTableToArray(body.text.div), {
-                    columns: {
-                        0: {
-                            alignment: 'right',
-                            width: 12
-                        },
-                        1: {
-                            alignment: 'left',
-                            width: 60,
-                            wrapWord: true
-                        },
-                        2: {
-                            alignment: 'left',
-                            width: 80,
-                            wrapWord: true
+                if ((APP.validate == VALIDATE_ERROR && body.text.div.indexOf("ERROR") > -1) ||
+                    (APP.validate == VALIDATE_WARNING && body.text.div.indexOf("WARNING") > -1) ||
+                    (APP.validate == VALIDATE_INFO && body.text.div.indexOf("INFORMATION") > -1)) {
+                    let msg = "\n" + ` Validation errors in ${url}: `.bold.redBG + "\n";
+                    msg += Table.table(htmlTableToArray(body.text.div), {
+                        columns: {
+                            0: {
+                                alignment: 'right',
+                                width: 12
+                            },
+                            1: {
+                                alignment: 'left',
+                                width: 60,
+                                wrapWord: true
+                            },
+                            2: {
+                                alignment: 'left',
+                                width: 80,
+                                wrapWord: true
+                            }
                         }
+                    });
+
+                    if (APP.exitOnInvalid) {
+                        return reject(msg);
                     }
-                });
-                if (body.text.div.indexOf("ERROR") > -1) {
-                    return reject(msg);
+
+                    if (body.text.div.indexOf("ERROR") > -1) {
+                        console.log("\n" + msg);
+                    }
                 }
-                console.log("\n" + msg);
             }
 
             setTimeout(() => resolve(resource), 0);
