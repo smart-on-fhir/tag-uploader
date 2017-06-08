@@ -282,9 +282,14 @@ function validateResource(resource) {
                 body.text.div &&
                 body.text.div.indexOf("No issues detected during validation") == -1)
             {
-                if ((APP.validate == VALIDATE_ERROR && body.text.div.indexOf("ERROR") > -1) ||
-                    (APP.validate == VALIDATE_WARNING && body.text.div.indexOf("WARNING") > -1) ||
-                    (APP.validate == VALIDATE_INFO && body.text.div.indexOf("INFORMATION") > -1)) {
+                let hasError   = body.text.div.indexOf("ERROR") > -1;
+                let hasWarning = body.text.div.indexOf("WARNING") > -1;
+                let hasInfo    = body.text.div.indexOf("INFORMATION") > -1;
+                
+                if ((APP.validate >= VALIDATE_ERROR && hasError) ||
+                    (APP.validate >= VALIDATE_WARNING && (hasError || hasWarning)) ||
+                    (APP.validate >= VALIDATE_INFO && (hasError || hasWarning || hasInfo)))
+                {
                     let msg = "\n" + ` Validation errors in ${url}: `.bold.redBG + "\n";
                     msg += Table.table(htmlTableToArray(body.text.div), {
                         columns: {
@@ -305,12 +310,11 @@ function validateResource(resource) {
                         }
                     });
 
-                    if (APP.exitOnInvalid) {
-                        return reject(msg);
-                    }
-
-                    if (body.text.div.indexOf("ERROR") > -1) {
+                    if (hasError) {
                         console.log("\n" + msg);
+                        if (APP.exitOnInvalid) {
+                            return reject(msg);
+                        }
                     }
                 }
             }
