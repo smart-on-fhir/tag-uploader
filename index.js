@@ -9,6 +9,7 @@ const PCG      = require('./package.json');
 const request  = require("request");
 const duration = require('humanize-duration');
 const Table    = require("table");
+const moment   = require("moment");
 
 const RE_WHITE_SPACES  = /\s+/g;
 const RE_TABLE_ROWS    = /<tr.*?>.*?<\/tr>/gi;
@@ -35,6 +36,7 @@ APP.option('-v, --verbose'            , 'Show detailed output', false);
 APP.option('-V, --validate [logLevel]', 'Validate the bundles', VALIDATE_NONE);
 APP.option('-e, --exit-on-invalid'    , 'Exit on validation errors', false);
 APP.option('-p, --proxy <url>'        , 'HTTP proxy url');
+APP.option('--silent'                 , 'Don\'t produce any output.');
 APP.option('--skip-until <filename>'  , 'Skip everything before this file (useful for debugging)');
 
 /**
@@ -65,6 +67,18 @@ function htmlTableToArray(html) {
     });
 }
 
+function log(...args) {
+    if (!APP.silent) {
+        process.stdout.write(args.map(String).join(" "));
+    }
+}
+
+function logError(error) {
+    if (!APP.silent) {
+        process.stderr.write(String(error));
+    }
+}
+
 /**
  * This is somewhat similar to the debug module mut it writes directly to STDOUT
  * and does NOT append new line at the end which allows us to do funky stuff.
@@ -73,7 +87,7 @@ function htmlTableToArray(html) {
  */
 function debugLog(msg) {
     if (APP.verbose) {
-        process.stdout.write(msg);
+        log(msg);
     }
 }
 
@@ -110,6 +124,11 @@ function tag(json={}, tagString="") {
     // FHIR Resource -----------------------------------------------------------
 
     COUNT_RESOURCES +=1;
+
+    // No tag specified - continue
+    if (!tagString) {
+        return json;
+    }
 
     // No meta - add one and exit
     if (!json.meta) {
@@ -285,7 +304,7 @@ function validateResource(resource) {
                 let hasError   = body.text.div.indexOf("ERROR") > -1;
                 let hasWarning = body.text.div.indexOf("WARNING") > -1;
                 let hasInfo    = body.text.div.indexOf("INFORMATION") > -1;
-                
+
                 if ((APP.validate >= VALIDATE_ERROR && hasError) ||
                     (APP.validate >= VALIDATE_WARNING && (hasError || hasWarning)) ||
                     (APP.validate >= VALIDATE_INFO && (hasError || hasWarning || hasInfo)))
@@ -311,7 +330,7 @@ function validateResource(resource) {
                     });
 
                     if (hasError) {
-                        console.log("\n" + msg);
+                        log("\n" + msg + "\n");
                         if (APP.exitOnInvalid) {
                             return reject(msg);
                         }
@@ -363,6 +382,10 @@ function parseJSON(str) {
  * @returns {String}
  */
 function generateProgress(pct=0) {
+    if (APP.verbose) {
+        return `${pct}% `.bold;
+    }
+
     let spinner = "", bold = [], grey = [];
     for (let i = 0; i < PROGRESS_LENGTH; i++) {
         if (i / PROGRESS_LENGTH * 100 >= pct) {
@@ -399,7 +422,7 @@ function countResources(cb) {
     });
 
     counter.on("errors", function (root, nodeStatsArray, next) {
-        console.log(("Error: " + nodeStatsArray.error).red + root + " - ", nodeStatsArray);
+        log(("Error: " + nodeStatsArray.error).red + root + " - ", nodeStatsArray, "\n");
         next();
     });
 
@@ -445,6 +468,32 @@ function countResources(cb) {
     })
 }
 
+const SETTINGS = {};
+/**
+ * Looks for settings file named ".settings.js" in the given directory. If that
+ * file is found, loads it and does some basic processing to evaluate moment
+ * .format strings... If no file is found returns an empty settings object.
+ * @param {String} dir The directory that might contain a config file
+ * @return {Object} The settings (might be an empty object)
+ */
+function lookUpConfig(dir) {
+    if (!SETTINGS[dir]) {
+        let cfg = {};
+        let path = Path.join(dir, ".settings.js");
+        if (FS.existsSync(path)) {
+            cfg = require(path);
+            if (cfg.tag) {
+                cfg.tag = String(cfg.tag).replace(
+                    /\$moment\{(.*?)\}/g,
+                    (all, match) => moment().format(match)
+                );
+            }
+        }
+        SETTINGS[dir] = cfg;
+    }
+    return SETTINGS[dir];
+}
+
 /**
  * The actual worker
  * @param {Number} total The number of resources (used to compute the progress)
@@ -452,20 +501,19 @@ function countResources(cb) {
  */
 function walk(total) {
     let fileFound = false;
-
     let walker = Walk.walk(APP.inputDir, {
         followLinks: false,
         filters    : ["Temp", "_Temp"]
     });
 
     walker.on("errors", function (root, nodeStatsArray, next) {
-        console.log(("Error: " + nodeStatsArray.error).red + root + " - ", nodeStatsArray)
+        log(("Error: " + nodeStatsArray.error).red + root + " - ", nodeStatsArray, "\n");
         next();
     });
 
     walker.on("end", function () {
-        process.stdout.write(generateProgress(100));
-        console.log(
+        log(generateProgress(100));
+        log(
             "\n" +
             " Done ".bold.bgGreen + " " +
             COUNT_FILES        + " files processed, " +
@@ -476,6 +524,7 @@ function walk(total) {
     });
 
     walker.on("file", function (root, fileStats, next) {
+
         if (fileStats.type != "file") {
             return next();
         }
@@ -497,14 +546,16 @@ function walk(total) {
         }
 
         debugLog(`Processing file "${fileStats.name}": `.bold);
-        process.stdout.write(generateProgress(Math.floor(COUNT_RESOURCES/total * 100)));
-        process.stdout.write(`Processing file "${fileStats.name}`.bold);
-        process.stdout.write(" ... ")
+        log(generateProgress(Math.floor(COUNT_RESOURCES/total * 100)));
+        log(`Processing file "${fileStats.name}`.bold);
+        log(" ... ");
 
+        let cfg = lookUpConfig(root);
         let src = Path.join(root, fileStats.name);
+
         readFile(src)
         .then(parseJSON)
-        .then(json => tag(json))
+        .then(json => tag(json, cfg.tag))
         .then(json => addEntryFullURLs(json))
         .then(json => {
             if (APP.overwrite) {
@@ -529,7 +580,7 @@ function walk(total) {
             next();
         })
         .catch(error => {
-            console.error(error);
+            logError(error);
             if (!APP.validate) {
                 next();
             }
@@ -546,17 +597,17 @@ if (require.main === module) {
 
     // Require input directory!
     if (!APP.inputDir) {
-        console.error('No input directory given'.red);
+        logError('No input directory given'.red);
         APP.help();
         process.exit(1);
     }
 
-    // Require a tag!
-    if (!APP.tag) {
-        console.error('No tag given'.red);
-        APP.help();
-        process.exit(1);
-    }
+    // // Require a tag!
+    // if (!APP.tag) {
+    //     logError('No tag given'.red);
+    //     APP.help();
+    //     process.exit(1);
+    // }
 
     countResources(walk);
 }
