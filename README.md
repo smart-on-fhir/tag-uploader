@@ -37,6 +37,7 @@ Usage: tag-uploader [options]
     -V, --validate [logLevel]  Validate the bundles
     -e, --exit-on-invalid      Exit on validation errors
     -p, --proxy <url>          HTTP proxy url
+    --silent                   Don't produce any output.
     --skip-until <filename>    Skip everything before this file (useful for debugging)
 ```
 
