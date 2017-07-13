@@ -602,13 +602,6 @@ if (require.main === module) {
         process.exit(1);
     }
 
-    // // Require a tag!
-    // if (!APP.tag) {
-    //     logError('No tag given'.red);
-    //     APP.help();
-    //     process.exit(1);
-    // }
-
     countResources(walk);
 }
 else {
