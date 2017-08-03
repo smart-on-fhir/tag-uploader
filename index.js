@@ -75,7 +75,7 @@ function log(...args) {
 
 function logError(error) {
     if (!APP.silent) {
-        process.stderr.write(String(error));
+        process.stderr.write(String(error) + "\n");
     }
 }
 
@@ -184,8 +184,8 @@ function tag(json={}, tagString="") {
 function addEntryFullURLs(bundle) {
     if (Array.isArray(bundle.entry)) {
         bundle.entry = bundle.entry.map(entry => {
-            if (!entry.fullUrl && entry.resource.id) {
-                entry.fullUrl = APP.server + "/" +
+            if (!entry.fullUrl && entry.resource.id && APP.server) {
+                entry.fullUrl = APP.server.replace(/\/?$/, "/") +
                     entry.resource.resourceType + "/" +
                     entry.resource.id;
             }
@@ -214,7 +214,21 @@ function upload(json) {
             })
         }
 
-        debugLog(`Executing transaction ${json.entry[0].request.url} ... `);
+        json.entry.forEach(entry => {
+            if (!entry.request) {
+                entry.request = {};
+            }
+            if (entry.resource.id) {
+                entry.request.method = "PUT";
+                entry.request.url = `${entry.resource.resourceType}/${entry.resource.id}`;
+            }
+            else {
+                entry.request.method = "POST";
+                entry.request.url = `${entry.resource.resourceType}`;
+            }
+        })
+
+        debugLog("Executing transaction... ");
         let start = Date.now();
         request({
             method: "POST",
@@ -233,6 +247,7 @@ function upload(json) {
             }
             if (response.statusCode >= 400) {
                 debugLog("Failed!\n".bold.red);
+                debugLog(JSON.stringify(body, null, 4));
                 let err = new Error(response.statusMessage);
                 err.details = body;
                 err.payload = json;
@@ -502,9 +517,10 @@ function lookUpConfig(dir) {
 function walk(total) {
     let fileFound = false;
     let walker = Walk.walk(APP.inputDir, {
-        followLinks: false,
-        filters    : ["Temp", "_Temp"]
+        followLinks: false
     });
+
+    log("\n");
 
     walker.on("errors", function (root, nodeStatsArray, next) {
         log(("Error: " + nodeStatsArray.error).red + root + " - ", nodeStatsArray, "\n");
@@ -519,7 +535,7 @@ function walk(total) {
             COUNT_FILES        + " files processed, " +
             COUNT_RESOURCES    + " resources tagged, " +
             COUNT_UPLOADED     + " resources uploaded, " +
-            COUNT_NOT_UPLOADED + " resources failed to upload"
+            COUNT_NOT_UPLOADED + " resources failed to upload\n\n"
         );
     });
 
@@ -545,7 +561,7 @@ function walk(total) {
             return next();
         }
 
-        debugLog(`Processing file "${fileStats.name}": `.bold);
+        // debugLog(`Processing file "${fileStats.name}": `.bold);
         log(generateProgress(Math.floor(COUNT_RESOURCES/total * 100)));
         log(`Processing file "${fileStats.name}`.bold);
         log(" ... ");
@@ -556,13 +572,13 @@ function walk(total) {
         readFile(src)
         .then(parseJSON)
         .then(json => tag(json, cfg.tag))
-        .then(json => addEntryFullURLs(json))
         .then(json => {
             if (APP.overwrite) {
                 FS.writeFileSync(src, JSON.stringify(json, null, 4), "utf8");
             }
             return json;
         })
+        .then(json => addEntryFullURLs(json))
         .then(json => {
             if (APP.server && APP.validate) {
                 return validate(json);
