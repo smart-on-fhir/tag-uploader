@@ -54,9 +54,8 @@ resource (represents an object with `resourceType` property) will be processed.
 -----
 `-t, --tag <tag>`
 
-Currently, this script is designed to always tag resources so providing the `-t`
-parameter is required. Note that the tag will be written to the files if you also
-use the `-w` flag. Otherwise, the tagging is done "in-memory" and the original\
+Note that the tag will be written to the files if you also
+provide the `-w` flag. Otherwise, the tagging is done "in-memory" and the original
 json files are not modified.
 
 ------
