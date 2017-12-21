@@ -184,8 +184,8 @@ function tag(json={}, tagString="") {
 function addEntryFullURLs(bundle) {
     if (Array.isArray(bundle.entry)) {
         bundle.entry = bundle.entry.map(entry => {
-            if (!entry.fullUrl && entry.resource.id && APP.server) {
-                entry.fullUrl = APP.server.replace(/\/?$/, "/") +
+            if (!entry.fullUrl && entry.resource.id /*&& APP.server*/) {
+                entry.fullUrl = "/" + //APP.server.replace(/\/?$/, "/") +
                     entry.resource.resourceType + "/" +
                     entry.resource.id;
             }
@@ -572,13 +572,14 @@ function walk(total) {
         readFile(src)
         .then(parseJSON)
         .then(json => tag(json, cfg.tag))
+        .then(json => addEntryFullURLs(json))
         .then(json => {
             if (APP.overwrite) {
                 FS.writeFileSync(src, JSON.stringify(json, null, 4), "utf8");
             }
             return json;
         })
-        .then(json => addEntryFullURLs(json))
+        // .then(json => addEntryFullURLs(json))
         .then(json => {
             if (APP.server && APP.validate) {
                 return validate(json);
