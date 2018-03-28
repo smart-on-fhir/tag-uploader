@@ -38,6 +38,9 @@ APP.option('-e, --exit-on-invalid'    , 'Exit on validation errors', false);
 APP.option('-p, --proxy <url>'        , 'HTTP proxy url');
 APP.option('--silent'                 , 'Don\'t produce any output.');
 APP.option('--skip-until <filename>'  , 'Skip everything before this file (useful for debugging)');
+APP.option('-u, --user <username>'    , 'Basic auth username (unless -a is used)');
+APP.option('-P, --password <password>', 'Basic auth password (unless -a is used)');
+APP.option('-a, --auth <auth>'        , 'Authorization header');
 
 /**
  * Parses the provided HTML string, extracts all <TR> tags and then extracts
@@ -230,7 +233,8 @@ function upload(json) {
 
         debugLog("Executing transaction... ");
         let start = Date.now();
-        request({
+
+        let options = {
             method: "POST",
             uri   : APP.server,
             json  : true,
@@ -239,7 +243,21 @@ function upload(json) {
             headers: {
                 accept: "application/json+fhir"
             }
-        }, (error, response, body) => {
+        };
+
+        if (APP.auth) {
+            options.headers.Authorization = APP.auth;
+        }
+
+        else if (APP.user && APP.password) {
+            options.auth = {
+                user: APP.user,
+                pass: APP.password,
+                sendImmediately: true
+            };
+        }
+
+        request(options, (error, response, body) => {
             if (error) {
                 debugLog("Failed!\n".bold.red);
                 COUNT_NOT_UPLOADED += 1;
@@ -297,7 +315,7 @@ function validateResource(resource) {
         let url = APP.server.replace(/\/?$/, "/") +
             `${resource.resourceType}/${resource.id}/$validate`;
 
-        request({
+        let options = {
             method: "POST",
             uri   : url,
             json  : true,
@@ -306,7 +324,21 @@ function validateResource(resource) {
             headers: {
                 accept: "application/json+fhir"
             }
-        }, (error, response, body) => {
+        };
+
+        if (APP.auth) {
+            options.headers.Authorization = APP.auth;
+        }
+
+        else if (APP.user && APP.password) {
+            options.auth = {
+                user: APP.user,
+                pass: APP.password,
+                sendImmediately: true
+            };
+        }
+
+        request(options, (error, response, body) => {
             if (error) {
                 return reject(error);
             }
