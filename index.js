@@ -500,18 +500,18 @@ function countResources(cb) {
 
         let src = Path.join(root, fileStats.name)
         readFile(src)
-        .then(parseJSON)
-        .then(json => {
-            if (json.resourceType) {
-                if (json.resourceType == "Bundle" && Array.isArray(json.entry)) {
-                    resources += json.entry.length
+            .then(parseJSON)
+            .then(json => {
+                if (json.resourceType) {
+                    if (json.resourceType == "Bundle" && Array.isArray(json.entry)) {
+                        resources += json.entry.length
+                    }
+                    else {
+                        resources += 1
+                    }
                 }
-                else {
-                    resources += 1
-                }
-            }
-            next()
-        })
+                next()
+            })
     })
 }
 
@@ -602,38 +602,38 @@ function walk(total) {
         let src = Path.join(root, fileStats.name);
 
         readFile(src)
-        .then(parseJSON)
-        .then(json => tag(json, cfg.tag))
-        .then(json => addEntryFullURLs(json))
-        .then(json => {
-            if (APP.overwrite) {
-                FS.writeFileSync(src, JSON.stringify(json, null, 4), "utf8");
-            }
-            return json;
-        })
-        // .then(json => addEntryFullURLs(json))
-        .then(json => {
-            if (APP.server && APP.validate) {
-                return validate(json);
-            }
-            return json;
-        })
-        .then(json => {
-            if (APP.server && !APP.validate) {
-                return upload(json);
-            }
-            return json;
-        })
-        .then(() => {
-            COUNT_FILES += 1;
-            next();
-        })
-        .catch(error => {
-            logError(error);
-            if (!APP.validate) {
+            .then(parseJSON)
+            .then(json => tag(json, cfg.tag))
+            .then(json => addEntryFullURLs(json))
+            .then(json => {
+                if (APP.overwrite) {
+                    FS.writeFileSync(src, JSON.stringify(json, null, 4), "utf8");
+                }
+                return json;
+            })
+            // .then(json => addEntryFullURLs(json))
+            .then(json => {
+                if (APP.server && APP.validate) {
+                    return validate(json);
+                }
+                return json;
+            })
+            .then(json => {
+                if (APP.server && !APP.validate) {
+                    return upload(json);
+                }
+                return json;
+            })
+            .then(() => {
+                COUNT_FILES += 1;
                 next();
-            }
-        });
+            })
+            .catch(error => {
+                logError(error);
+                if (!APP.validate) {
+                    next();
+                }
+            });
     });
 }
 
