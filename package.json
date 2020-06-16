@@ -10,14 +10,14 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "colors": "^1.1.2",
+    "colors": "^1.4.0",
     "commander": "^2.9.0",
     "eslint": "^5.16.0",
     "humanize-duration": "^3.10.0",
     "moment": "^2.24.0",
     "request": "^2.88.0",
     "table": "^4.0.1",
-    "walk": "^2.3.9"
+    "walk": "^2.3.14"
   },
   "devDependencies": {
     "nodeunit": "^0.11.3"
