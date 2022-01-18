@@ -39,6 +39,9 @@ Usage: tag-uploader [options]
     -p, --proxy <url>          HTTP proxy url
     --silent                   Don't produce any output.
     --skip-until <filename>    Skip everything before this file (useful for debugging)
+    -u, --user <username>      Basic auth username (unless -a is used)
+    -P, --password <password>  Basic auth password (unless -a is used)
+    -a, --auth <auth>          Authorization header
 ```
 
 ## Important Options Explained
